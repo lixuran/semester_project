@@ -20,26 +20,25 @@ def simImage(img, H):
     img=tgm.warp_perspective(img, homography, dsize=(img.shape[2], img.shape[3]))
     return img
 
-def simImagePath(img_path, H):
-    image = Image.open(img_path)
-    image = image.convert('RGB')
+def simImageGray(image, H,batch_size=64):
+
 
     im_transform = transforms.Compose([
 
         transforms.ToTensor()
     ])
     image = im_transform(image)
-    # todo: add batch support
-    # todo: add gradient support
+    # todo: add batch support done
+    # todo: debug to check if gradient works done
 
-    img = image.unsqueeze(dim=0)
-    homography = H.view(1, 3, 3)
-    img=tgm.warp_perspective(img, homography, dsize=(img.shape[2], img.shape[3]))
-    gray_im = kornia.rgb_to_grayscale(img)
-
+    img = image.expand(batch_size,image.shape[0],image.shape[1],image.shape[2])
+    H = H.view(-1, 3, 3) #todo: whats going on here???
+    img=tgm.warp_perspective(img, H, dsize=(img.shape[2], img.shape[3]))
+    grayscale = kornia.color.gray.RgbToGrayscale()
+    gray_im = grayscale(img)
     return gray_im
 
-
+#todo: understand this function done
 def runSimulate(K, dx, thetax, dy, thetay, dz, thetaz):
     T = torch.tensor([dx, dy, dz],requires_grad=True)
     Rx = torch.tensor([[1, 0, 0], [0, np.cos(thetax), -np.sin(thetax)], [0, np.sin(thetax), np.cos(thetax)]],requires_grad=True)
@@ -52,6 +51,45 @@ def runSimulate(K, dx, thetax, dy, thetay, dz, thetaz):
     H = torch.cat((R_ff[:, 0:2], torch.unsqueeze(T,dim=1)),dim=1).type(torch.FloatTensor)
     H = torch.matmul(K, H)
     H=H/H[2,2]
+    return H, label
+
+#todo batchify this done
+def runSimulatefromPred(K, xyz,wpqr):
+    dx = xyz[:,0].reshape(-1,1) #todo: verify this
+    dy = xyz[:,1].reshape(-1,1)
+    dz = xyz[:, 2].reshape(-1, 1)
+    w = wpqr[:, 0].reshape(-1, 1)
+    p = wpqr[:, 1].reshape(-1, 1)
+    q = wpqr[:, 2].reshape(-1, 1)
+    r = wpqr[:, 3].reshape(-1, 1)
+    bs = w.shape[0]
+
+    thetax, thetay, thetaz =p/w, q/w, r/w
+    T = xyz #todo:is this right?
+    #Rx = torch.tensor([[1, 0, 0], [0, torch.cos(thetax), -torch.sin(thetax)], [0, torch.sin(thetax), torch.cos(thetax)]],requires_grad=True)
+    Rx1 = torch.tensor([1,0,0]).expand(bs,-1).reshape(bs,1,3)
+    Rx2 = torch.cat((torch.tensor([0]).expand(bs,1),torch.cos(thetax),-torch.sin(thetax)),dim=1).reshape(bs,1,3)
+    Rx3 = torch.cat((torch.tensor([0]).expand(bs,1),torch.sin(thetax),torch.cos(thetax)),dim=1).reshape(bs,1,3)
+    Rx = torch.cat((Rx1,Rx2,Rx3),dim=1)
+    #Ry = torch.tensor([[np.cos(thetay), 0, np.sin(thetay)], [0, 1, 0], [-np.sin(thetay), 0, np.cos(thetay)]],requires_grad=True)
+    Ry2 = torch.tensor([0, 1, 0]).expand(bs, -1).reshape(bs, 1, 3)
+    Ry1 = torch.cat(( torch.cos(thetax),torch.tensor([0]).expand(bs, 1), torch.sin(thetax)), dim=1).reshape(bs, 1, 3)
+    Ry3 = torch.cat(( -torch.sin(thetax),torch.tensor([0]).expand(bs, 1), torch.cos(thetax)), dim=1).reshape(bs, 1, 3)
+    Ry = torch.cat((Ry1, Ry2, Ry3), dim=1)
+    #Rz = torch.tensor([[np.cos(thetaz), -np.sin(thetaz), 0], [np.sin(thetaz), np.cos(thetaz), 0], [0, 0, 1]],requires_grad=True)
+    Rz3 = torch.tensor([0, 0, 1]).expand(bs, -1).reshape(bs, 1, 3)
+    Rz1 = torch.cat(( torch.cos(thetax), -torch.sin(thetax),torch.tensor([0]).expand(bs, 1)), dim=1).reshape(bs, 1, 3)
+    Rz2 = torch.cat(( torch.sin(thetax), torch.cos(thetax),torch.tensor([0]).expand(bs, 1)), dim=1).reshape(bs, 1, 3)
+    Rz = torch.cat((Rz1, Rz2, Rz3), dim=1)
+    #Rz.shape bs*3*3
+    R_f = torch.matmul(torch.matmul(Rx, Ry), Rz).type(torch.FloatTensor) #works for batch
+    #r_ff.shape bs*3*4
+    R_ff = torch.transpose(torch.cat((torch.transpose(R_f,2,1), torch.unsqueeze(torch.tensor([0,0,0]).type(torch.FloatTensor),dim=0).expand(bs,1,3)),dim=1),2,1)
+    quaternion = tgm.rotation_matrix_to_quaternion(R_ff) #shape bs*4
+    label = torch.cat((T/ 10, quaternion),dim=1)#bs*7
+    H = torch.cat((R_ff[:,:, 0:2], torch.unsqueeze(T,dim=2)),dim=2).type(torch.FloatTensor)#bs*3*4
+    H = torch.matmul(K.unsqueeze(dim=0), H)#k: 1*3*3 so H bs*3*4
+    H=H/(H[:,2,2].reshape(bs,1,1))
     return H, label
 
 
@@ -75,7 +113,7 @@ def main():
 
 
     img = image.unsqueeze(dim=0)
-    if(frontal==True): # todo: what does this do
+    if(frontal==True): # todo: what does this viariable represent, does it have to do with the dual solution of a img view?
         folder="/itet-stor/sebono/net_scratch/visloc-apr-new-architecture/generated-images"
         x=-np.pi/2-np.pi/2-np.pi/6
         _,ch,row, col = img.shape
@@ -98,6 +136,7 @@ def main():
         for el2 in rangey:
             for el in rangea:
                 K = torch.tensor([[zoom, 0, col / 2], [0, zoom, row / 2.5], [0, 0, 1]]).type(torch.FloatTensor)
+                # todo: why are the coefficients set up like this
                 H, label = runSimulate(K, el2, -np.pi / 2, 100 - np.pi / 8, 0, el1, x+el)
                 img_out = simImage(img, H)
                 thresh = int(img.shape[0] / 2)
