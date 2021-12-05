@@ -9,11 +9,19 @@ __all__ = ['AbsPoseDataset']
 class AbsPoseDataset(data.Dataset):
     def __init__(self, dataset, root, pose_txt, transforms=None):
         self.dataset = dataset
+        self.root = root
         self.transforms = transforms
         self.pose_txt = os.path.join(root, dataset, pose_txt)
         self.ims, self.poses = self.parse_abs_pose_txt(self.pose_txt)
+        #self.imsl = []
+        #for i in range(len(self.ims)):
+        #    im = Image.open(os.path.join(self.root,self.ims[i]))
+        #    if self.transforms:
+        #        im = self.transforms(im)
+        #    self.imsl.append(im)
         self.data_dir = os.path.join(root, dataset)
         self.num = len(self.ims)
+        print("simulated dataset loaded")
  
     def __getitem__(self, index):
         """Return:
@@ -23,8 +31,11 @@ class AbsPoseDataset(data.Dataset):
         """
         data_dict = {}
         im = self.ims[index]
-        data_dict['im_ref'] = im 
-        im = Image.open(os.path.join(self.data_dir, im))
+        data_dict['im_ref'] = im
+        #print(self.data_dir,self.root,self.dataset)
+        #print(im,self.root)
+        im = Image.open(os.path.join(self.root, im))
+        #im = self.imsl[index]        
         if self.transforms:
             im = self.transforms(im)
         data_dict['im'] = im        
@@ -45,10 +56,11 @@ class AbsPoseDataset(data.Dataset):
         poses = []
         ims = []
         f = open(fpath)
-        for line in f.readlines()[3::]:
-            cur = line.strip().split(' ')
-            xyz = np.array([float(v) for v in cur[1:4]], dtype=np.float32)
-            wpqr = np.array([float(v) for v in cur[4:8]], dtype=np.float32)
+        for line in f.readlines()[0::]:
+            cur = line.strip().split(" ")
+            #print(cur[0],cur[1])
+            xyz = np.array([float(v) for v in cur[2:5]], dtype=np.float32)
+            wpqr = np.array([float(v) for v in cur[5:9]], dtype=np.float32)
             ims.append(cur[0])
             poses.append((xyz, wpqr))
         f.close()

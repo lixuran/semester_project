@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from networks.base.basenet import BaseNet
 from networks.base.googlenet import GoogLeNet
 
-from self_learning.transformation import runSimulate, simImage, runSimulatefromPred, simImageGray
+from transformation import runSimulate, simImage, runSimulatefromPred, simImageGray
 from PIL import Image
 
 import kornia
@@ -81,16 +81,18 @@ class PoseNet(BaseNet):
         self.set_optimizer_(config)
 
         #top down view of the soccer field
-        self.ground_img_path = 'C:\\Users\\mrlix\\Desktop\\ethsecondyear\\project\\Semester-Project-main\\generate synthetic images\\robocup_thicker.jpeg'
+        self.ground_img_path = '/home/xurali/Semester-project-xuran/semester_project/generate synthetic images/robocup_thicker.jpeg'
         #specify if the self learning loss use gradient
         self.not_use_gradient = False
 
         self.image = Image.open(self.ground_img_path)
         self.image = self.image.convert('RGB')
-        self.final_sl_weight = config.slw
-        self.start_sl_weight = config.slws
+        if config.ops:
+            self.image = config.ops(self.image)
+        self.final_sl_weight = config.selflearn_weight
+        self.start_sl_weight = config.selflearn_weightstart
         self.sl_weight = self.start_sl_weight
-        self.sl_epochs = config.sle
+        self.sl_epochs = config.selflearn_epochs
         self.sl_step   =  (self.final_sl_weight- self.start_sl_weight)/self.sl_epochs
 
 
@@ -180,7 +182,7 @@ class PoseNet(BaseNet):
                 if self.not_use_gradient == False:
                     #loss_sl = calculate_sl_loss(im,xyz,wpqr)
                     x = -np.pi / 2 - np.pi / 6
-                    _, ch, row, col = self.img.shape
+                    _, ch, row, col = im.shape
                     zoom = 1900  # the focal length?
                     K = torch.tensor([[zoom, 0, col / 2], [0, zoom, row / 2.5], [0, 0, 1]]).type(torch.FloatTensor) # todo: what are these design choices
                     #todo: make this function differentiable done
@@ -195,9 +197,11 @@ class PoseNet(BaseNet):
                     # masking all parts in the transformed ground view thats not the white line
 
 
-                    gray_im.register_hook(lambda grad: grad * mask.float())
+                    trans_ground.register_hook(lambda grad: grad * mask.float())
                     # calculate loss as mean entropy? or maybe
-                    loss_mse_f = torch.nn.MSELoss()# todo: note if use bce need first rescale to 0,1 first
+                    loss_mse_f = torch.nn.MSELoss()
+                    # todo: note if use bce need first rescale to 0,1 first
+                    #print(trans_ground.shape,gray_im.shape)
                     loss_sl =loss_mse_f( trans_ground, gray_im)
                 else:
                     raise(NotImplementedError)

@@ -33,9 +33,9 @@ class AbsPoseConfig:
         # Data loading and preprocess
         data_group.add_argument('--data_root', '-root', metavar='%s', type=str, default='data',
                                          help='the root directory containing target datasets(default: %(default)s)' )
-        data_group.add_argument('--real_dataset', '-ds', metavar='%s', type=str, required=True,
+        data_group.add_argument('--real_dataset', '-dsr', metavar='%s', type=str, required=True,
                                 help='the real robo cup target dataset under data root')
-        data_group.add_argument('--simulated_dataset', '-ds', metavar='%s', type=str, required=True,
+        data_group.add_argument('--simulated_dataset', '-dss', metavar='%s', type=str, required=True,
                                 help='the simulated target dataset under data root')
         data_group.add_argument('--pose_txt',  metavar='%s', default='dataset_train.txt', 
                                          help='the file to load pose labels(default: %(default)s)')
@@ -67,7 +67,9 @@ class AbsPoseConfig:
                                      help='learn the weighting factor during training')
         model_group.add_argument('--homo_init', metavar=('%f[Sx]', '%f[Sq]'), type=float, nargs=2, default=[0.0, -3.0], 
                                      help='initial guess for homoscedastic uncertainties variables(default: %(default)s)')
-        model_group.add_argument('--pre_epochs', '-ep', metavar='%d', type=int, default=400,
+        model_group.add_argument('--start_pre_epochs', '-spep', metavar='%d', type=int, default=0,
+                                     help='number of pretraining epochs(default: %(default)s)')
+        model_group.add_argument('--pre_epochs', '-pep', metavar='%d', type=int, default=400,
                                      help='number of pretraining epochs(default: %(default)s)')
         model_group.add_argument('--epochs', '-ep', metavar='%d', type=int, default=900,
                                  help='number of training epochs(default: %(default)s)')

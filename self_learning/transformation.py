@@ -27,7 +27,7 @@ def simImageGray(image, H,batch_size=64):
 
         transforms.ToTensor()
     ])
-    image = im_transform(image)
+    #image = im_transform(image)
     # todo: add batch support done
     # todo: debug to check if gradient works done
 

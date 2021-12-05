@@ -9,7 +9,7 @@ from torchvision import transforms
 import torch.utils.data as data
 import pandas as pd
 
-from self_learning.utils.datasets.robocup import RobocupDataset
+from utils.datasets.robocup import RobocupDataset
 from utils.common.config_parser import AbsPoseConfig
 from utils.common.setup import *
 from utils.datasets.preprocess import *
@@ -17,7 +17,7 @@ from utils.datasets.abspose import AbsPoseDataset
 from utils.common.visdom_templates import PoseNetVisTmp, OptimSearchVisTmp
 import networks
 
-from self_learning.transformation import runSimulatefromPred, simImageGray
+from transformation import runSimulatefromPred, simImageGray
 
 def setup_config(config):
     print('Setup configurations...')
@@ -62,7 +62,7 @@ def setup_config(config):
 
     # Model initialization
     config.start_epoch = 0
-    config.start_pre_epoc = 0
+    config.start_pre_epochs = 0
     config.weights_dir = None
     config.weights_dict = None
     config.optimizer_dict = None
@@ -74,11 +74,11 @@ def setup_config(config):
         checkpoint = torch.load(config.weights_dir)
         assert config.network == checkpoint['network']
         if (checkpoint['pretrain_done']):
-            config.start_pre_epoch = config.pre_epoch # skip pretrain
+            config.start_pre_epochs = config.pre_epoch # skip pretrain
 
             config.start_epoch = checkpoint['last_epoch'] + 1
         else:
-            config.start_pre_epoch = checkpoint['last_epoch'] + 1
+            config.start_pre_epochs = checkpoint['last_epoch'] + 1
         config.weights_dict = checkpoint['state_dict']
         config.optimizer_dict = checkpoint['optimizer']
     delattr(config, 'resume')
@@ -112,8 +112,8 @@ def train(net, config, log, simulated_train_loader,real_train_loader, simulated_
         visman, tloss_meter, pos_acc_meter, rot_acc_meter = OptimSearchVisTmp.get_meters(config)
         homo_meters = None
     start_time = time.time()
-    print('Start pre training on simulated data from {config.start_pre_epoch} to {config.pre_epochs}.'.format(config=config))
-    for epoch in range(config.start_pre_epoch, config.pre_epochs): #todo: fix the restart value here by adding it to ckpt done
+    print('Start pre training on simulated data from {config.start_pre_epochs} to {config.pre_epochs}.'.format(config=config))
+    for epoch in range(config.start_pre_epochs, config.pre_epochs): #todo: fix the restart value here by adding it to ckpt done
         net.train()  # Switch to training mode
 
         loss, losses = net.train_epoch(simulated_train_loader, epoch,pretrain= True)
@@ -190,8 +190,8 @@ def train(net, config, log, simulated_train_loader,real_train_loader, simulated_
     lprint('Total training time {0:.4f}s'.format((time.time() - start_time)), log)
 #todo: change this to add loss on real data done
 def test(net, config, log, simulated_data_loader,real_data_loader, err_thres=(2, 5)):
-    realtxt=open("/home/xurali/Semester-Project/visloc-apr/real.txt", "w")
-    predictedtxt=open("/home/xurali/Semester-Project/visloc-apr/predicted.txt", "w")
+    #realtxt=open("/home/xurali/Semester-Project/visloc-apr/real.txt", "w")
+    #predictedtxt=open("/home/xurali/Semester-Project/visloc-apr/predicted.txt", "w")
 
     ground_img_path = 'C:\\Users\\mrlix\\Desktop\\ethsecondyear\\project\\Semester-Project-main\\generate synthetic images\\robocup_thicker.jpeg'
     # specify if the self learning loss use gradient
@@ -234,11 +234,11 @@ def test(net, config, log, simulated_data_loader,real_data_loader, err_thres=(2,
             loss_sl = loss_mse_f(trans_ground, gray_im)
             #save predicted
             df_predicted=pd.DataFrame(np.concatenate((xyz.transpose(),wpqr.transpose())).transpose())
-            predictedtxt.write(df_predicted.to_string(header=False, index=False))
+            #predictedtxt.write(df_predicted.to_string(header=False, index=False))
 
             #save real
             df_real=pd.DataFrame(np.concatenate((xyz_.transpose(),wpqr_.transpose())).transpose())
-            realtxt.write(df_real.to_string(header=False, index=False))
+            #realtxt.write(df_real.to_string(header=False, index=False))
             t_err = np.linalg.norm(xyz - xyz_, axis=1)
             q_err = cal_quat_angle_error(wpqr, wpqr_)
             pos_err += list(t_err)
@@ -251,8 +251,8 @@ def test(net, config, log, simulated_data_loader,real_data_loader, err_thres=(2,
             passed += 1
     lprint('Accuracy on simulation: ({err[0]:.2f}m, {err[1]:.2f}deg,{err[2]:.2f}) Pass({err_thres[0]}m, {err_thres[1]}deg): {rate:.2f}% '.format(err=err, err_thres=err_thres, rate=100.0 * passed / i), log)
 
-    realtxt.close()
-    predictedtxt.close()
+    #realtxt.close()
+    #predictedtxt.close()
     return err
 class ConcatDataset(torch.utils.data.Dataset):
     def __init__(self, *datasets):
@@ -319,7 +319,7 @@ def main():
 
     real_data_src = RobocupDataset(config.real_dataset, config.data_root, config.ops)
     real_len = len(real_data_src)
-    real_train_set, real_val_set = torch.utils.data.random_split(real_data_src, [real_len*8//10, real_len - real_len*8//10])
+    real_train_set, real_val_set = torch.utils.data.random_split(real_data_src, [real_len*8//10,real_len-real_len*8//10])
     cat_src = ConcatDataset(simulated_data_src,real_train_set)
     real_data_loader = data.DataLoader(cat_src, batch_size=config.batch_size, shuffle=config.training,
                                             num_workers=config.num_workers)

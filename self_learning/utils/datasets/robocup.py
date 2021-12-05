@@ -11,9 +11,17 @@ class RobocupDataset(data.Dataset):
     def __init__(self, dataset, root, transforms=None):
         self.dataset = dataset
         self.transforms = transforms
-        self.ims,  = self.parse_location_txt()
         self.data_dir = os.path.join(root, dataset)
+        self.ims  = self.find_images()
         self.num = len(self.ims)
+        self.root = root
+        #self.imsl = []
+        #for i in range(len(self.ims)):
+        #    im = Image.open(os.path.join(self.data_dir,self.ims[i]))
+        #    if self.transforms:
+        #        im = self.transforms(im)
+        #    self.imsl.append(im)
+        #print("real data loaded") 
 
     def __getitem__(self, index):
         """Return:
@@ -24,9 +32,10 @@ class RobocupDataset(data.Dataset):
         data_dict = {}
         im = self.ims[index]
         data_dict['im_ref'] = im
+        #im = self.imsl[index]
         im = Image.open(os.path.join(self.data_dir, im))
         if self.transforms:
-            im = self.transforms(im)
+           im = self.transforms(im)
         data_dict['im'] = im
         #data_dict['xyz'] = self.poses[index][0]
         #data_dict['wpqr'] = self.poses[index][1]
@@ -35,21 +44,22 @@ class RobocupDataset(data.Dataset):
     def __len__(self):
         return self.num
 
-    def parse_location_txt(self, fpath):
+    def find_images(self):
         '''
         get all the file addresses
         '''
         #poses = []
-        ims = []
-        f = open(fpath)
-        for line in f.readlines()[3::]:
-            cur = line.strip().split(' ')
+        #ims = []
+	#os.listdir(self.data_dir)
+        
+        #for line in f.readlines()[3::]:
+            #cur = line.strip().split(' ')
             #xyz = np.array([float(v) for v in cur[1:4]], dtype=np.float32)
             #wpqr = np.array([float(v) for v in cur[4:8]], dtype=np.float32)
-            ims.append(cur[0])
+            #ims.append(cur[0])
             #poses.append((xyz, wpqr))
-        f.close()
-        return ims
+        #f.close()
+        return os.listdir(self.data_dir)
 
     def __repr__(self):
         fmt_str = 'AbsPoseDataset {}\n'.format(self.dataset)
